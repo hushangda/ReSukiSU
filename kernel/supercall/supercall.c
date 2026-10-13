@@ -59,7 +59,13 @@ static int ksu_install_fd_with_permissions(unsigned int fd_flags, unsigned long 
         return -ENOMEM;
 
     context->permissions = permissions;
+    /* UAPI 2 ksud only discovers [ksu_driver]. Authorization remains in
+     * context->permissions, never in the externally visible inode name. */
+#ifdef CONFIG_KSU_SUKISU_420_COMPAT
+    name = "[ksu_driver]";
+#else
     name = permissions & KSU_DRIVER_PERMISSION_SU_SESSION ? "[ksu_driver_su]" : "[ksu_driver]";
+#endif
 
     // Get unused fd
     fd = get_unused_fd_flags(fd_flags);

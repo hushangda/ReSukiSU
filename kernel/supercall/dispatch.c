@@ -82,6 +82,14 @@ static int do_get_info(void __user *arg)
     cmd.features = KSU_FEATURE_MAX;
     cmd.uapi_version = KERNEL_SU_UAPI_VERSION;
 
+#ifdef CONFIG_KSU_SUKISU_420_COMPAT
+    /* SukiSU checks both exact build-code equality and UAPI equality.
+     * This explicitly selected ABI also applies to its root ksud process. */
+    cmd.version = 40900;
+    cmd.uapi_version = 2;
+    cmd.flags &= ~KSU_GET_INFO_FLAG_BUNDLED;
+#endif
+
 #ifdef CONFIG_KSU_TOOLKIT_SUPPORT
     if (ksuver_override)
         cmd.version = ksuver_override;
@@ -101,6 +109,10 @@ static int do_get_info(void __user *arg)
 static int do_get_info_legacy(void __user *arg)
 {
     struct ksu_get_info_legacy_cmd cmd = { .version = KERNEL_SU_VERSION, .flags = 0 };
+
+#ifdef CONFIG_KSU_SUKISU_420_COMPAT
+    cmd.version = 40900;
+#endif
 
 #ifdef MODULE
     cmd.flags |= KSU_GET_INFO_FLAG_LKM;
@@ -629,6 +641,54 @@ static int do_nuke_ext4_sysfs(void __user *arg)
 
 struct list_head mount_list = LIST_HEAD_INIT(mount_list);
 DECLARE_RWSEM(mount_list_lock);
+
+#ifdef CONFIG_KSU_SUKISU_420_COMPAT
+/* SukiSU's LIST_TRY_UMOUNT has the same opcode as ReSukiSU's
+ * DYNAMIC_MANAGER. Decode it before the native dispatch table. */
+struct sukisu_list_try_umount_cmd {
+    __aligned_u64 arg;
+    __u32 buf_size;
+};
+
+static int do_sukisu_list_try_umount(void __user *arg)
+{
+    struct sukisu_list_try_umount_cmd cmd;
+    struct mount_entry *entry;
+    const char header[] = "Mount Point\tFlags\n----------\t-----\n";
+    char *buf;
+    size_t offset = sizeof(header) - 1;
+    int ret = 0, written;
+
+    if (copy_from_user(&cmd, arg, sizeof(cmd)))
+        return -EFAULT;
+    if (!cmd.arg || !cmd.buf_size || cmd.buf_size > 1024 * 1024)
+        return -EINVAL;
+    if (cmd.buf_size <= offset)
+        return -ENOSPC;
+
+    buf = kvzalloc(cmd.buf_size, GFP_KERNEL);
+    if (!buf)
+        return -ENOMEM;
+    memcpy(buf, header, sizeof(header));
+
+    down_read(&mount_list_lock);
+    list_for_each_entry (entry, &mount_list, list) {
+        written = snprintf(buf + offset, cmd.buf_size - offset, "%s\t%u\n", entry->umountable, entry->flags);
+        if (written < 0 || (size_t)written >= cmd.buf_size - offset) {
+            ret = -ENOSPC;
+            break;
+        }
+        offset += written;
+    }
+    up_read(&mount_list_lock);
+
+    /* Respect the caller's buffer size, including the terminating NUL. */
+    if (!ret && copy_to_user((void __user *)(unsigned long)cmd.arg, buf, offset + 1))
+        ret = -EFAULT;
+    kvfree(buf);
+    return ret;
+}
+#endif
 
 static int ksu_umount_list_getsize(struct ksu_manage_try_umount_cmd *cmd, bool legacy)
 {
@@ -1387,6 +1447,21 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
 long ksu_supercall_handle_ioctl(const struct file *filp, unsigned int cmd, void __user *argp)
 {
     int i;
+
+#ifdef CONFIG_KSU_SUKISU_420_COMPAT
+    if (cmd == KSU_IOCTL_DYNAMIC_MANAGER) {
+        if (!manager_or_root())
+            return -EPERM;
+        return do_sukisu_list_try_umount(argp);
+    }
+    if (cmd == _IOC(_IOC_READ, 'K', 102, 0)) {
+        const __u8 enabled = 0; /* KPM is absent from this upstream kernel. */
+
+        if (!manager_or_root())
+            return -EPERM;
+        return copy_to_user(argp, &enabled, sizeof(enabled)) ? -EFAULT : 0;
+    }
+#endif
 
 #ifdef CONFIG_KSU_DEBUG
     pr_info("ksu ioctl: cmd=0x%x from uid=%d\n", cmd, ksu_get_uid_t(current_uid()));
