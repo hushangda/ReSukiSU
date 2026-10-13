@@ -14,8 +14,14 @@ on:
       - 'kernel/**'
       - 'userspace/**'
       - 'scripts/ksubot.py'
+      - 'repack_apk.py'
+      - 'repack_apk_multi.py'
   pull_request:
   workflow_call:
+    inputs:
+      require_signing:
+        type: boolean
+        default: false
 
 jobs:
   prepare:
@@ -27,7 +33,41 @@ jobs:
       keystore_password: ${{ steps.gen.outputs.keystore_password }}
       key_password: ${{ steps.gen.outputs.key_password }}
       spoofed_package_name: ${{ steps.pkg.outputs.spoofed_package_name }}
+      signing_mode: ${{ steps.credentials.outputs.signing_mode }}
+      telegram_enabled: ${{ steps.credentials.outputs.telegram_enabled }}
     steps:
+      - name: Determine signing and notification mode
+        id: credentials
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          REQUIRE_SIGNING: ${{ inputs.require_signing || github.ref_type == 'tag' }}
+        run: |
+          mode=signed
+          if [ "$EVENT_NAME" != pull_request ]; then
+            if [ -z "$KEYSTORE$KEY_ALIAS$KEYSTORE_PASSWORD$KEY_PASSWORD" ]; then
+              if [ "$REQUIRE_SIGNING" = true ]; then
+                echo "::error::Release signing requires KEYSTORE, KEY_ALIAS, KEYSTORE_PASSWORD and KEY_PASSWORD."
+                exit 1
+              fi
+              mode=unsigned
+              echo "No signing credentials configured; producing aligned unsigned CI artifacts." >> "$GITHUB_STEP_SUMMARY"
+            elif [ -z "$KEYSTORE" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
+              echo "::error::Incomplete signing configuration: set all four signing secrets or remove them for unsigned CI builds."
+              exit 1
+            fi
+          fi
+          echo "signing_mode=$mode" >> "$GITHUB_OUTPUT"
+          telegram=false
+          if [ -n "$BOT_TOKEN" ] && [ "$mode" = signed ] && [ "$EVENT_NAME" != pull_request ]; then
+            telegram=true
+          fi
+          echo "telegram_enabled=$telegram" >> "$GITHUB_OUTPUT"
+
       - name: Generate temporary keystore
         if: github.event_name == 'pull_request'
         id: gen
@@ -319,8 +359,11 @@ jobs:
           PROD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           PROD_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           PROD_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          SIGNING_MODE: ${{ needs.prepare.outputs.signing_mode }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "$SIGNING_MODE" = unsigned ]; then
+            echo "SIGN_UNSIGNED=true" >> "$GITHUB_ENV"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "$PR_KEYSTORE" | base64 -d > pr-key.jks
             echo "SIGN_KEYSTORE_FILE=pr-key.jks" >> $GITHUB_ENV
             echo "SIGN_KEY_ALIAS=pr-key" >> $GITHUB_ENV
@@ -335,19 +378,23 @@ jobs:
             echo "SIGN_KEY_PASSWORD=$PROD_KEY_PASSWORD" >> $GITHUB_ENV
           fi
 
-      - name: Repack and resign
+      - name: Repack and align (sign when configured)
         run: |
-          python3 repack_apk_multi.py repack \
+          mode_args=()
+          signing_args=()
+          if [ "${SIGN_UNSIGNED:-false}" = true ]; then
+            mode_args=(--unsigned)
+          else
+            signing_args=(-K "$SIGN_KEYSTORE_FILE" -A "$SIGN_KEY_ALIAS" -P "$SIGN_KEYSTORE_PASSWORD" -S "$SIGN_KEY_PASSWORD")
+          fi
+          python3 repack_apk_multi.py "${mode_args[@]}" repack \
             -b ${{ matrix.build_type }} \
             -t release \
             -a arm64-v8a \
             -a armeabi-v7a \
             -a x86_64 \
             -a riscv64 \
-            -K "$SIGN_KEYSTORE_FILE" \
-            -A "$SIGN_KEY_ALIAS" \
-            -P "$SIGN_KEYSTORE_PASSWORD" \
-            -S "$SIGN_KEY_PASSWORD" \
+            "${signing_args[@]}" \
             --strip
 
       - name: Delete gradle build
@@ -358,11 +405,13 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.determine.outputs.title }}-${{ matrix.build_type }}
+          name: ${{ steps.determine.outputs.title }}-${{ matrix.build_type }}${{ needs.prepare.outputs.signing_mode == 'unsigned' && '-unsigned' || '' }}
           path: dist/*.apk
 
   telegram-bot-api:
     name: Telegram Bot API
+    needs: prepare
+    if: needs.prepare.outputs.telegram_enabled == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -398,8 +447,8 @@ jobs:
           path: telegram-bot-api-binary
 
   upload-telegram:
-    needs: [repack-manager, telegram-bot-api]
-    if: github.event_name != 'pull_request' && github.event_name != 'workflow_call'
+    needs: [prepare, repack-manager, telegram-bot-api]
+    if: needs.prepare.outputs.telegram_enabled == 'true' && github.event_name != 'workflow_call'
     runs-on: ubuntu-latest
     strategy:
       matrix:

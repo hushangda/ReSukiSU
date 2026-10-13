@@ -109,6 +109,11 @@ def process_single_apk(apk_path: Path, args: argparse.Namespace, out_dir: Path) 
             [str(zipalign), "-P", "16", "-f", "4", str(unsigned_path), str(aligned_path)],
             "zipalign failed",
         )
+
+        if args.unsigned:
+            unsigned_output = out_dir / f"{output_name}-unsigned.apk"
+            aligned_path.replace(unsigned_output)
+            return unsigned_output
         
         signing = {
             "keystore_path": args.keystore_path,
@@ -197,6 +202,11 @@ def load_config_and_merge(args: argparse.Namespace) -> None:
 def main():
     # Reuse original module's parser
     parser = repack.build_parser()
+    parser.add_argument(
+        "--unsigned",
+        action="store_true",
+        help="Repack and align without signing; output is labeled -unsigned.apk",
+    )
     
     # Update help description
     parser.description = "Repack manager APK with ksud injection (supports multiple APKs with filename arch detection)"

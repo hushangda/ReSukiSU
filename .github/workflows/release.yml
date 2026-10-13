@@ -8,6 +8,8 @@ on:
 jobs:
   build-manager:
     uses: ./.github/workflows/build-manager.yml
+    with:
+      require_signing: true
     secrets: inherit
   release:
     needs:
