@@ -527,7 +527,6 @@
     <string name="susfs_enable_config_summary">Увімкнути вбудований менеджер SUSFS. Може конфліктувати зі сторонніми модулями.</string>
     <string name="susfs_enable_config">Менеджер SUSFS</string>
     <string name="settings_custom_monospace_font">Використовувати вбудований моноширинний шрифт</string>
-    <string name="about_anime_character_sticker"><![CDATA[Піктограми ліцензовані за спеціальною угодою: намальовані 怡子曰曰, авторські права належать 明风 OuO, а векторизовані піктограми надані цим проєктом.]]></string>
     <string name="require_kernel_version_gki">Потрібне оновлення ядра</string>
     <string name="require_manager_version">Потрібне оновлення менеджера</string>
     <string name="require_kernel_version">Потрібне оновлення ядра. Натисніть, щоб встановити.</string>
@@ -561,4 +560,10 @@
     <string name="settings_pager_gesture_native">За замовчуванням</string>
     <string name="settings_pager_gesture_cross_axis">Поперечна вісь</string>
     <string name="settings_pager_gesture_ios_like">як в iOS</string>
+    <string name="about_app_icon"><![CDATA[Усі права на значки захищено, а авторські права належать %1$s]]></string>
+    <string name="more_than_one_kernel_file">Знайдено більше 1 файлу anykernel3 у вхідних файлах</string>
+    <string name="both_kernel_and_module_files">Вхідні zip-архіви містять як anykernel3, так і модулі</string>
+    <string name="module_shortcut_copy_scheme">Скопіювати схему URL</string>
+    <string name="module_shortcut_scheme_copied">Схема URL скопійована</string>
+    <string name="internal_server_error">Внутрішня помилка сервера</string>
 </resources>
