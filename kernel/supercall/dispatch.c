@@ -655,7 +655,7 @@ static int do_nuke_ext4_sysfs(void __user *arg)
 struct list_head mount_list = LIST_HEAD_INIT(mount_list);
 DECLARE_RWSEM(mount_list_lock);
 
-#ifdef CONFIG_KSU_SUKISU_420_COMPAT
+#if defined(CONFIG_KSU_SUKISU_420_COMPAT) || defined(CONFIG_KSU_SUKISU_UAPI5_COMPAT)
 /* SukiSU's LIST_TRY_UMOUNT has the same opcode as ReSukiSU's
  * DYNAMIC_MANAGER. Decode it before the native dispatch table. */
 struct sukisu_list_try_umount_cmd {
@@ -1461,7 +1461,7 @@ long ksu_supercall_handle_ioctl(const struct file *filp, unsigned int cmd, void 
 {
     int i;
 
-#ifdef CONFIG_KSU_SUKISU_420_COMPAT
+#if defined(CONFIG_KSU_SUKISU_420_COMPAT) || defined(CONFIG_KSU_SUKISU_UAPI5_COMPAT)
     if (cmd == KSU_IOCTL_DYNAMIC_MANAGER) {
         if (!manager_or_root())
             return -EPERM;

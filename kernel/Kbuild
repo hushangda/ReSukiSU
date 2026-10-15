@@ -96,6 +96,11 @@ KSU_VERSION_FULL := $(KSU_VERSION_FULL)+sukisu-4.2.0-compat
 $(info -- SukiSU Ultra 4.2.0 compatibility ABI: version 40900, UAPI 2)
 endif
 
+ifeq ($(CONFIG_KSU_SUKISU_UAPI5_COMPAT),y)
+KSU_VERSION_FULL := $(KSU_VERSION_FULL)+sukisu-uapi5-compat
+$(info -- SukiSU Ultra UAPI 5 compatibility: native ABI and scoped driver fds)
+endif
+
 $(info -- $(REPO_NAME) version code: $(KSU_VERSION))
 $(info -- $(REPO_NAME) version name: $(KSU_VERSION_FULL))
 

@@ -65,6 +65,17 @@ config KSU_SUKISU_420_COMPAT
 	  Use the SukiSU 4.2.0 manager/ksud with this mode, not BakaSU's
 	  UAPI 5 userspace. Disable this option to restore the upstream ABI.
 
+config KSU_SUKISU_UAPI5_COMPAT
+	bool "SukiSU Ultra UAPI 5 manager and daemon compatibility"
+	depends on KSU_MULTI_MANAGER_SUPPORT && !KSU_SUKISU_420_COMPAT
+	default n
+	help
+	  Accept the official SukiSU certificate and its mount-list/KPM-probe
+	  ioctls, using the native UAPI 5 and scoped driver-fd permissions.
+	  For SukiSU Ultra 4.2.1 manager and ksud. Does not override GET_INFO
+	  with the old 40900/UAPI 2 identity; GET_FULL_VERSION identifies BakaSU.
+	  Install a matching UAPI 5 ksud when switching from the legacy ABI.
+
 config KSU_DISABLE_POLICY
 	bool "Disable KernelSU policy profiles"
 	depends on KSU
