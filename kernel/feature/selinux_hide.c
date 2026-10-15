@@ -45,6 +45,9 @@
 #include "selinux/sepolicy.h"
 #include "selinux_hide.h"
 #include "compat/kernel_compat.h"
+#ifdef KSU_COMPAT_HAS_SUSFS_SELINUX_BRIDGE
+#include <linux/susfs_selinux.h>
+#endif
 
 #ifdef KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE
 #define __maybe_static
@@ -1822,3 +1825,24 @@ allow:
     avd->allowed = 0xffffffff;
     goto out;
 }
+
+#ifdef KSU_COMPAT_HAS_SUSFS_SELINUX_BRIDGE
+/* Use the same parser as the native hooks: look up both policies, update the
+ * live SID table, and retain the context hash handling for Android 5.4. */
+int ksu_susfs_context_to_sid(const char *context, u32 len, u32 *sid, u32 *live_sid, int *live_error)
+{
+    return ksu_security_context_to_sid(&selinux_state.ss->policydb, selinux_state.ss->sidtab, backup_policydb,
+                                       backup_sidtab, context, len, sid, SECSID_NULL, GFP_KERNEL, live_sid, live_error);
+}
+
+int ksu_susfs_sid_to_context(u32 sid, char **context, u32 *len)
+{
+    return ksu_security_sid_to_context(backup_policydb, backup_sidtab, sid, context, len);
+}
+
+void ksu_susfs_compute_av(u32 ssid, u32 tsid, u16 tclass, struct av_decision *avd)
+{
+    ksu_security_compute_av_user(backup_policydb, backup_sidtab, ssid, tsid, tclass, avd);
+    avd->seqno = 1;
+}
+#endif

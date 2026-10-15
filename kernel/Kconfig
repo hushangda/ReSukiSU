@@ -61,9 +61,9 @@ config KSU_SUKISU_420_COMPAT
 	  Select the SukiSU Ultra 4.2.0 (40900, UAPI 2) userspace ABI.
 	  Includes its driver-fd name and mount-list ioctl, while retaining
 	  scoped su-session permissions. GET_INFO reports the matching version;
-	  GET_FULL_VERSION still identifies the actual ReSukiSU source.
-	  Use the SukiSU 4.2.0 manager/ksud with this mode, not ReSukiSU's
-	  UAPI 4 userspace. Disable this option to restore the upstream ABI.
+	  GET_FULL_VERSION still identifies the actual BakaSU source.
+	  Use the SukiSU 4.2.0 manager/ksud with this mode, not BakaSU's
+	  UAPI 5 userspace. Disable this option to restore the upstream ABI.
 
 config KSU_DISABLE_POLICY
 	bool "Disable KernelSU policy profiles"
